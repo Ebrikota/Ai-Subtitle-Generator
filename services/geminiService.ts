@@ -19,11 +19,11 @@ const subtitleSchema = {
         properties: {
           startTime: {
             type: Type.STRING,
-            description: "Start time of the subtitle in HH:MM:SS,mmm format.",
+            description: "Start time of the subtitle in strict HH:MM:SS,mmm format. The HH part for hours must always be present, e.g., '00:03:20,123'.",
           },
           endTime: {
             type: Type.STRING,
-            description: "End time of the subtitle in HH:MM:SS,mmm format.",
+            description: "End time of the subtitle in strict HH:MM:SS,mmm format. The HH part for hours must always be present, e.g., '00:03:25,456'.",
           },
           text: {
             type: Type.STRING,
@@ -56,7 +56,7 @@ export const generateSubtitles = async (base64Data: string, mimeType: string): P
             },
           },
           {
-            text: "You are an expert subtitle creator. Transcribe the audio from the provided file with the highest accuracy. Pay close attention to the entire audio, including any words at the very beginning. Your output must be a JSON object that adheres to the provided schema. For each subtitle entry, provide a precise 'startTime' and 'endTime' in HH:MM:SS,mmm format. The 'text' for each subtitle line must not exceed 15 characters. However, if a single word is longer than 15 characters, place that word on its own line. Do not split words. Break down long sentences into smaller, digestible chunks that respect this character limit rule.",
+            text: "You are an expert subtitle creator. Transcribe the audio from the provided file with the highest accuracy. Pay close attention to the entire audio, including any words at the very beginning. Your output must be a JSON object that adheres to the provided schema. For each subtitle entry, provide a precise 'startTime' and 'endTime'. It is critical that you follow the strict HH:MM:SS,mmm format. The 'HH' for hours must always be present and padded with a zero if needed (e.g., 00, 01). For example, a timestamp for 3 minutes and 20 seconds must be formatted as '00:03:20,000', NOT '3:20,000'. The 'text' for each subtitle line must not exceed 15 characters. However, if a single word is longer than 15 characters, place that word on its own line. Do not split words. Break down long sentences into smaller, digestible chunks that respect this character limit rule.",
           },
         ],
       },
