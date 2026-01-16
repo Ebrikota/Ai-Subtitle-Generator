@@ -20,7 +20,7 @@ const App: React.FC = () => {
   const progressIntervalRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const key = sessionStorage.getItem('openai_api_key');
+    const key = localStorage.getItem('openai_api_key');
     if (key) {
       setIsApiKeySet(true);
     }
@@ -50,9 +50,16 @@ const App: React.FC = () => {
   };
   
   const handleApiKeySubmit = (key: string) => {
-    sessionStorage.setItem('openai_api_key', key);
+    localStorage.setItem('openai_api_key', key);
     setIsApiKeySet(true);
     setError('');
+  };
+
+  const handleClearApiKey = () => {
+    localStorage.removeItem('openai_api_key');
+    setIsApiKeySet(false);
+    setError('');
+    handleReset();
   };
 
   const handleGenerateSubtitles = useCallback(async () => {
@@ -104,7 +111,7 @@ const App: React.FC = () => {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
       
       if (errorMessage.includes('Invalid OpenAI API key')) {
-          sessionStorage.removeItem('openai_api_key');
+          localStorage.removeItem('openai_api_key');
           setIsApiKeySet(false);
           setError('Your OpenAI API key is invalid. Please enter a valid key.');
       } else {
@@ -135,6 +142,17 @@ const App: React.FC = () => {
             Upload your media, and let AI create rhythmic subtitles for you.
           </p>
         </header>
+
+        {isApiKeySet && (
+          <div className="w-full text-right mb-4 -mt-4">
+            <button 
+              onClick={handleClearApiKey}
+              className="text-xs text-gray-500 hover:text-indigo-400 hover:underline transition-colors"
+            >
+              Change OpenAI API Key
+            </button>
+          </div>
+        )}
 
         <main className="bg-gray-800/50 rounded-2xl shadow-2xl shadow-indigo-500/10 p-6 sm:p-8 backdrop-blur-sm border border-gray-700">
           {!isApiKeySet ? (

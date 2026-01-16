@@ -1,6 +1,6 @@
 
 export const transcribeWithWhisper = async (file: File): Promise<string> => {
-  const OPENAI_API_KEY = sessionStorage.getItem('openai_api_key');
+  const OPENAI_API_KEY = localStorage.getItem('openai_api_key');
 
   if (!OPENAI_API_KEY) {
     throw new Error("OpenAI API key not found. Please provide your key.");

@@ -19,8 +19,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ onKeySubmit }) => {
     <div className="text-center p-6 bg-gray-800/60 rounded-lg border border-gray-700 animate-fade-in">
       <h3 className="text-lg font-semibold text-white mb-2">OpenAI API Key Required</h3>
       <p className="text-sm text-gray-400 mb-4">
-        Please enter your OpenAI API key to enable transcription via Whisper.
-        Your key is stored in your browser for this session only.
+        Please enter your OpenAI API key to enable transcription. Your key will be saved in your browser for future visits.
       </p>
       <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-center gap-2">
         <input
