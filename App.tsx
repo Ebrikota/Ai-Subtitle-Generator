@@ -1,6 +1,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { generateSubtitles } from './services/geminiService';
+import { synchronizeSubtitles } from './services/geminiService';
+import { transcribeWithWhisper } from './services/openaiService';
 import { fileToBase64 } from './utils/fileUtils';
 import FileUpload from './components/FileUpload';
 import SubtitlePreview from './components/SubtitlePreview';
@@ -13,6 +14,7 @@ const App: React.FC = () => {
   const [status, setStatus] = useState<Status>(Status.IDLE);
   const [error, setError] = useState<string>('');
   const [progress, setProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const progressIntervalRef = useRef<number | null>(null);
 
   const clearProgressInterval = useCallback(() => {
@@ -34,6 +36,7 @@ const App: React.FC = () => {
     setSubtitles([]);
     setError('');
     setProgress(0);
+    setLoadingMessage('');
     clearProgressInterval();
   };
 
@@ -48,24 +51,27 @@ const App: React.FC = () => {
     setSubtitles([]);
     setProgress(0);
 
-    progressIntervalRef.current = window.setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 95) {
-          clearProgressInterval();
-          return 95;
-        }
-        return prev + 1;
-      });
-    }, 200);
-
     try {
+      setLoadingMessage('Transcribing with Whisper...');
+      progressIntervalRef.current = window.setInterval(() => {
+        setProgress(p => (p < 45 ? p + 1 : 45)); 
+      }, 150);
+      const transcript = await transcribeWithWhisper(file);
+      clearProgressInterval();
+      setProgress(50);
+      
+      setLoadingMessage('Synchronizing timestamps...');
+      progressIntervalRef.current = window.setInterval(() => {
+        setProgress(p => (p < 95 ? p + 1 : 95));
+      }, 150);
+
       const { base64Data, mimeType } = await fileToBase64(file);
       
       if (!mimeType.startsWith('audio/') && !mimeType.startsWith('video/')) {
         throw new Error('Unsupported file type. Please upload an audio or video file.');
       }
 
-      const generatedSubtitles = await generateSubtitles(base64Data, mimeType);
+      const generatedSubtitles = await synchronizeSubtitles(base64Data, mimeType, transcript);
       
       clearProgressInterval();
       setProgress(100);
@@ -91,6 +97,7 @@ const App: React.FC = () => {
     setStatus(Status.IDLE);
     setError('');
     setProgress(0);
+    setLoadingMessage('');
     clearProgressInterval();
   };
 
@@ -120,7 +127,7 @@ const App: React.FC = () => {
           {status === Status.LOADING && (
             <div className="mt-6 flex flex-col items-center justify-center text-center">
               <CircularProgress progress={progress} />
-              <p className="mt-4 text-indigo-400 animate-pulse">Generating subtitles... this may take a moment.</p>
+              <p className="mt-4 text-indigo-400 animate-pulse">{loadingMessage}</p>
             </div>
           )}
           
@@ -143,7 +150,7 @@ const App: React.FC = () => {
         </main>
         
         <footer className="text-center mt-8 text-gray-500 text-sm">
-            <p>Powered by Gemini API</p>
+            <p>Powered by OpenAI Whisper & Gemini API</p>
         </footer>
       </div>
     </div>

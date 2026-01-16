@@ -18,6 +18,7 @@ const SubtitlePreview: React.FC<SubtitlePreviewProps> = ({ file, subtitles, onRe
   const [currentSubtitle, setCurrentSubtitle] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
   const [editableSubtitles, setEditableSubtitles] = useState<SubtitleEntry[]>([]);
+  const playbackEndTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     const url = URL.createObjectURL(file);
@@ -33,10 +34,24 @@ const SubtitlePreview: React.FC<SubtitlePreviewProps> = ({ file, subtitles, onRe
   const handleTimeUpdate = () => {
     if (!mediaRef.current) return;
     const currentTime = mediaRef.current.currentTime;
+
+    if (playbackEndTimeRef.current !== null && currentTime >= playbackEndTimeRef.current) {
+        mediaRef.current.pause();
+        playbackEndTimeRef.current = null;
+    }
+
     const activeSubtitle = editableSubtitles.find(
       (sub) => currentTime >= sub.startTime && currentTime <= sub.endTime
     );
     setCurrentSubtitle(activeSubtitle ? activeSubtitle.text : '');
+  };
+
+  const handlePlaySegment = (startTime: number, endTime: number) => {
+    if (mediaRef.current) {
+        mediaRef.current.currentTime = startTime;
+        mediaRef.current.play();
+        playbackEndTimeRef.current = endTime;
+    }
   };
 
   const handleDownload = () => {
@@ -142,6 +157,7 @@ const SubtitlePreview: React.FC<SubtitlePreviewProps> = ({ file, subtitles, onRe
                         entry={entry}
                         index={index}
                         onUpdate={handleSubtitleUpdate}
+                        onPlay={handlePlaySegment}
                     />
                 ))}
             </div>

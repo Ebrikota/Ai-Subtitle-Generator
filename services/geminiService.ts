@@ -29,7 +29,7 @@ const subtitleSchema = {
           },
           text: {
             type: Type.STRING,
-            description: "A single, short line of transcribed text. It should not exceed 23 characters, unless a single word is longer than 23 characters.",
+            description: "A single, short line of transcribed text taken directly from the provided script. It should not exceed 23 characters.",
           },
           timing_explanation: {
             type: Type.STRING,
@@ -37,7 +37,7 @@ const subtitleSchema = {
           },
           confidence: {
             type: Type.NUMBER,
-            description: "Your confidence in the transcription's accuracy, from 0.0 (total guess) to 1.0 (perfectly certain). Base this on audio clarity, background noise, and accent.",
+            description: "Your confidence in the TIMING's accuracy for this specific text segment, from 0.0 (total guess) to 1.0 (perfectly certain). Base this on how clearly you can match the text to the audio.",
           }
         },
         required: ["startTime", "endTime", "text", "timing_explanation", "confidence"],
@@ -54,7 +54,7 @@ interface SubtitleLine {
     confidence: number;
 }
 
-export const generateSubtitles = async (base64Data: string, mimeType: string): Promise<SubtitleEntry[]> => {
+export const synchronizeSubtitles = async (base64Data: string, mimeType: string, transcript: string): Promise<SubtitleEntry[]> => {
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview", 
@@ -67,23 +67,28 @@ export const generateSubtitles = async (base64Data: string, mimeType: string): P
             },
           },
           {
-            text: `You are a professional subtitling expert, acting as both a transcriptionist and a timing specialist. Your primary goal is to create subtitles that are exceptionally accurate and perfectly synchronized. The transcription must be a literal, verbatim record of the speech. The timing must be frame-perfect to enhance viewer immersion.
+            text: `You are a professional subtitle timing and segmentation specialist. You will be given an exact, verbatim transcript and the corresponding audio file.
+Your ONLY task is to segment the provided transcript into short, rhythmic lines and provide perfectly synchronized start and end timestamps for each line from the audio.
 
-Your output must be a JSON object adhering to the schema. For each subtitle entry, follow these rules with extreme prejudice:
+**CRITICAL INSTRUCTIONS:**
+1.  **DO NOT TRANSCRIBE:** The transcript is provided below and is considered 100% accurate. You MUST NOT alter, correct, add, or remove any words from the provided transcript. Your output text must be a direct segmentation of the source transcript.
+2.  **SEGMENTATION:** Break the transcript into short lines, ideally under 23 characters. Break lines at natural pauses.
+3.  **TIMING (EXTREME PRECISION):** This is your main purpose. Analyze the audio waveform with extreme care. The \`startTime\` must mark the *absolute beginning* of the audible speech for that line, and the \`endTime\` must mark the *absolute end* of the final word's sound. Timestamps MUST be in the strict \`HH:MM:SS,mmm\` format.
+4.  **CONFIDENCE SCORE:** For each line, provide a \`confidence\` score from 0.0 to 1.0 based on how accurately you believe you timed the segment. A score of 1.0 means you are absolutely certain of the timing.
+5.  **EXPLANATION:** Provide a brief \`timing_explanation\` for each line.
 
-1.  **Accuracy (Highest Priority):** Transcribe the speech literally and verbatim. You MUST include filler words ('um', 'uh'), stutters, and grammatical errors exactly as they are spoken. Do not correct, paraphrase, or summarize the speaker's words. The text must be an exact representation of the audio.
-2.  **Timing (Extreme Precision Required):** Human perception of audio-visual sync is sensitive to millisecond-level errors. Your timing must be flawless. Analyze the audio waveform with extreme care. The \`startTime\` must mark the *absolute beginning* of the audible speech for that line, and the \`endTime\` must mark the *absolute end* of the final word's sound. Do not include silence or breaths at the beginning or end of a clip. Timestamps MUST be in the strict \`HH:MM:SS,mmm\` format. Double-check your timings before finalizing.
-3.  **Text Formatting:** Keep lines short, ideally under 23 characters. Do not split words across lines. A single word longer than 23 characters is acceptable on its own line. Break lines at natural pauses in speech to improve readability.
-4.  **Confidence Score (Mandatory):** For each line, provide a \`confidence\` score from 0.0 to 1.0. This is your honest assessment of the transcription's accuracy. A score of 1.0 means you are absolutely certain. A score below 0.7 indicates ambiguity. Be critical: lower the score for unclear words, background noise, or heavy accents.
-5.  **Explanation (Crucial):** For each line, you MUST provide a \`timing_explanation\`. This is a brief justification for your chosen start and end times, proving you have analyzed the audio. Examples: 'Starts precisely on the attack of the first word', 'Ends as the speaker's voice fades on the last syllable', 'Timed to match the rapid pace of this phrase'.`,
+**THE VERBATIM TRANSCRIPT TO TIME AND SEGMENT IS:**
+---
+${transcript}
+---`,
           },
         ],
       },
       config: {
         responseMimeType: "application/json",
         responseSchema: subtitleSchema,
-        temperature: 0.2, // Lower temperature for more deterministic, accurate output
-        thinkingConfig: { thinkingBudget: 16384 }, // Allocate more processing for complex analysis
+        temperature: 0.1, 
+        thinkingConfig: { thinkingBudget: 24576 },
       },
     });
 
@@ -109,7 +114,6 @@ Your output must be a JSON object adhering to the schema. For each subtitle entr
 
         if (isNaN(startTime) || isNaN(endTime)) {
           console.warn('Invalid timestamp received from model:', line);
-          // Provide a fallback or skip the line
           return { startTime: 0, endTime: 0, text: line.text, confidence: line.confidence };
         }
         
