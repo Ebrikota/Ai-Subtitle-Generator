@@ -1,0 +1,5 @@
+{
+  "name": "AI Subtitle Generator",
+  "description": "Upload an audio or video file to automatically generate beautifully structured, easy-to-read subtitles. The AI breaks down speech into short, rhythmic lines perfect for video content.",
+  "requestFramePermissions": []
+}
