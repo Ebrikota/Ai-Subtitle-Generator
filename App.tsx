@@ -6,6 +6,7 @@ import { fileToBase64 } from './utils/fileUtils';
 import FileUpload from './components/FileUpload';
 import SubtitlePreview from './components/SubtitlePreview';
 import CircularProgress from './components/CircularProgress';
+import ApiKeyInput from './components/ApiKeyInput';
 import { Status, SubtitleEntry } from './types';
 
 const App: React.FC = () => {
@@ -15,7 +16,15 @@ const App: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [progress, setProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState('');
+  const [isApiKeySet, setIsApiKeySet] = useState(false);
   const progressIntervalRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const key = sessionStorage.getItem('openai_api_key');
+    if (key) {
+      setIsApiKeySet(true);
+    }
+  }, []);
 
   const clearProgressInterval = useCallback(() => {
     if (progressIntervalRef.current) {
@@ -38,6 +47,12 @@ const App: React.FC = () => {
     setProgress(0);
     setLoadingMessage('');
     clearProgressInterval();
+  };
+  
+  const handleApiKeySubmit = (key: string) => {
+    sessionStorage.setItem('openai_api_key', key);
+    setIsApiKeySet(true);
+    setError('');
   };
 
   const handleGenerateSubtitles = useCallback(async () => {
@@ -85,8 +100,16 @@ const App: React.FC = () => {
       clearProgressInterval();
       setProgress(0);
       console.error(err);
+      
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
-      setError(`Failed to generate subtitles: ${errorMessage}`);
+      
+      if (errorMessage.includes('Invalid OpenAI API key')) {
+          sessionStorage.removeItem('openai_api_key');
+          setIsApiKeySet(false);
+          setError('Your OpenAI API key is invalid. Please enter a valid key.');
+      } else {
+          setError(`Failed to generate subtitles: ${errorMessage}`);
+      }
       setStatus(Status.ERROR);
     }
   }, [file, clearProgressInterval]);
@@ -114,8 +137,14 @@ const App: React.FC = () => {
         </header>
 
         <main className="bg-gray-800/50 rounded-2xl shadow-2xl shadow-indigo-500/10 p-6 sm:p-8 backdrop-blur-sm border border-gray-700">
-          {status !== Status.SUCCESS && (
-            <FileUpload onFileChange={handleFileChange} file={file} />
+          {!isApiKeySet ? (
+             <ApiKeyInput onKeySubmit={handleApiKeySubmit} />
+          ) : (
+            <>
+              {status !== Status.SUCCESS && (
+                <FileUpload onFileChange={handleFileChange} file={file} />
+              )}
+            </>
           )}
 
           {error && (
@@ -123,28 +152,32 @@ const App: React.FC = () => {
               {error}
             </div>
           )}
-
-          {status === Status.LOADING && (
-            <div className="mt-6 flex flex-col items-center justify-center text-center">
-              <CircularProgress progress={progress} />
-              <p className="mt-4 text-indigo-400 animate-pulse">{loadingMessage}</p>
-            </div>
-          )}
           
-          {status === Status.IDLE && file && (
-            <div className="mt-6 flex justify-center">
-              <button
-                onClick={handleGenerateSubtitles}
-                disabled={!file || status === Status.LOADING}
-                className="w-full sm:w-auto px-8 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-opacity-75"
-              >
-                Generate Subtitles
-              </button>
-            </div>
-          )}
-          
-          {status === Status.SUCCESS && file && (
-            <SubtitlePreview file={file} subtitles={subtitles} onReset={handleReset} />
+          {isApiKeySet && (
+            <>
+                {status === Status.LOADING && (
+                <div className="mt-6 flex flex-col items-center justify-center text-center">
+                    <CircularProgress progress={progress} />
+                    <p className="mt-4 text-indigo-400 animate-pulse">{loadingMessage}</p>
+                </div>
+                )}
+                
+                {status === Status.IDLE && file && (
+                <div className="mt-6 flex justify-center">
+                    <button
+                    onClick={handleGenerateSubtitles}
+                    disabled={!file || status === Status.LOADING}
+                    className="w-full sm:w-auto px-8 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-opacity-75"
+                    >
+                    Generate Subtitles
+                    </button>
+                </div>
+                )}
+                
+                {status === Status.SUCCESS && file && (
+                <SubtitlePreview file={file} subtitles={subtitles} onReset={handleReset} />
+                )}
+            </>
           )}
 
         </main>

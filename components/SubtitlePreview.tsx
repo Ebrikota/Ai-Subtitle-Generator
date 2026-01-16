@@ -5,6 +5,8 @@ import { DownloadIcon } from './icons/DownloadIcon';
 import { EditIcon } from './icons/EditIcon';
 import { SubtitleEntry } from '../types';
 import SubtitleLineEdit from './SubtitleLineEdit';
+import WaveformEditor from './WaveformEditor';
+import SubtitleLineDisplay from './SubtitleLineDisplay';
 
 interface SubtitlePreviewProps {
   file: File;
@@ -19,6 +21,8 @@ const SubtitlePreview: React.FC<SubtitlePreviewProps> = ({ file, subtitles, onRe
   const [isEditing, setIsEditing] = useState(false);
   const [editableSubtitles, setEditableSubtitles] = useState<SubtitleEntry[]>([]);
   const playbackEndTimeRef = useRef<number | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const url = URL.createObjectURL(file);
@@ -33,15 +37,17 @@ const SubtitlePreview: React.FC<SubtitlePreviewProps> = ({ file, subtitles, onRe
 
   const handleTimeUpdate = () => {
     if (!mediaRef.current) return;
-    const currentTime = mediaRef.current.currentTime;
+    const newTime = mediaRef.current.currentTime;
+    setCurrentTime(newTime);
 
-    if (playbackEndTimeRef.current !== null && currentTime >= playbackEndTimeRef.current) {
+
+    if (playbackEndTimeRef.current !== null && newTime >= playbackEndTimeRef.current) {
         mediaRef.current.pause();
         playbackEndTimeRef.current = null;
     }
 
     const activeSubtitle = editableSubtitles.find(
-      (sub) => currentTime >= sub.startTime && currentTime <= sub.endTime
+      (sub) => newTime >= sub.startTime && newTime <= sub.endTime
     );
     setCurrentSubtitle(activeSubtitle ? activeSubtitle.text : '');
   };
@@ -77,6 +83,12 @@ const SubtitlePreview: React.FC<SubtitlePreviewProps> = ({ file, subtitles, onRe
 
     newSubtitles[index] = updatedEntry;
     setEditableSubtitles(newSubtitles);
+  };
+  
+  const handleSeek = (time: number) => {
+    if (mediaRef.current) {
+      mediaRef.current.currentTime = time;
+    }
   };
 
   const isVideo = file.type.startsWith('video/');
@@ -119,6 +131,20 @@ const SubtitlePreview: React.FC<SubtitlePreviewProps> = ({ file, subtitles, onRe
           </div>
         )}
       </div>
+       
+       {isEditing && (
+            <div className="w-full mt-2">
+                <WaveformEditor
+                    file={file}
+                    subtitles={editableSubtitles}
+                    onUpdateSubtitle={handleSubtitleUpdate}
+                    currentTime={currentTime}
+                    onSeek={handleSeek}
+                    selectedSubtitleIndex={selectedSubtitleIndex}
+                    onSelectSubtitle={setSelectedSubtitleIndex}
+                />
+            </div>
+        )}
 
       <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 w-full justify-center">
         <button
@@ -149,19 +175,33 @@ const SubtitlePreview: React.FC<SubtitlePreviewProps> = ({ file, subtitles, onRe
       </div>
 
        <div className="w-full pt-4 border-t border-gray-700/50">
-        {isEditing && (
-            <div className="w-full space-y-2 max-h-96 overflow-y-auto p-2 rounded-lg bg-gray-900/50 border border-gray-700">
-                {editableSubtitles.map((entry, index) => (
-                    <SubtitleLineEdit 
+        <div className="w-full space-y-2 max-h-96 overflow-y-auto p-2 rounded-lg bg-gray-900/50 border border-gray-700">
+          {isEditing ? (
+            editableSubtitles.map((entry, index) => (
+                <SubtitleLineEdit 
+                    key={`${index}-${entry.startTime}`}
+                    entry={entry}
+                    index={index}
+                    onUpdate={handleSubtitleUpdate}
+                    onPlay={handlePlaySegment}
+                    isSelected={index === selectedSubtitleIndex}
+                    onSelect={() => setSelectedSubtitleIndex(index)}
+                />
+            ))
+          ) : (
+            editableSubtitles.map((entry, index) => {
+                const isActive = currentTime >= entry.startTime && currentTime <= entry.endTime;
+                return (
+                    <SubtitleLineDisplay
                         key={`${index}-${entry.startTime}`}
                         entry={entry}
-                        index={index}
-                        onUpdate={handleSubtitleUpdate}
-                        onPlay={handlePlaySegment}
+                        isActive={isActive}
+                        onClick={() => handleSeek(entry.startTime)}
                     />
-                ))}
-            </div>
-        )}
+                );
+            })
+          )}
+        </div>
        </div>
     </div>
   );
