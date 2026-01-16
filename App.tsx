@@ -1,23 +1,40 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { generateSubtitles } from './services/geminiService';
 import { fileToBase64 } from './utils/fileUtils';
 import FileUpload from './components/FileUpload';
-import SubtitleDisplay from './components/SubtitleDisplay';
-import Spinner from './components/Spinner';
-import { Status } from './types';
+import SubtitlePreview from './components/SubtitlePreview';
+import CircularProgress from './components/CircularProgress';
+import { Status, SubtitleEntry } from './types';
 
 const App: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
-  const [subtitles, setSubtitles] = useState<string>('');
+  const [subtitles, setSubtitles] = useState<SubtitleEntry[]>([]);
   const [status, setStatus] = useState<Status>(Status.IDLE);
   const [error, setError] = useState<string>('');
+  const [progress, setProgress] = useState(0);
+  const progressIntervalRef = useRef<number | null>(null);
+
+  const clearProgressInterval = useCallback(() => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearProgressInterval();
+    };
+  }, [clearProgressInterval]);
 
   const handleFileChange = (selectedFile: File | null) => {
     setFile(selectedFile);
     setStatus(Status.IDLE);
-    setSubtitles('');
+    setSubtitles([]);
     setError('');
+    setProgress(0);
+    clearProgressInterval();
   };
 
   const handleGenerateSubtitles = useCallback(async () => {
@@ -28,37 +45,58 @@ const App: React.FC = () => {
 
     setStatus(Status.LOADING);
     setError('');
-    setSubtitles('');
+    setSubtitles([]);
+    setProgress(0);
+
+    progressIntervalRef.current = window.setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 95) {
+          clearProgressInterval();
+          return 95;
+        }
+        return prev + 1;
+      });
+    }, 200);
 
     try {
       const { base64Data, mimeType } = await fileToBase64(file);
       
-      // Basic validation for common audio/video types
       if (!mimeType.startsWith('audio/') && !mimeType.startsWith('video/')) {
         throw new Error('Unsupported file type. Please upload an audio or video file.');
       }
 
       const generatedSubtitles = await generateSubtitles(base64Data, mimeType);
-      setSubtitles(generatedSubtitles);
-      setStatus(Status.SUCCESS);
+      
+      clearProgressInterval();
+      setProgress(100);
+
+      setTimeout(() => {
+        setSubtitles(generatedSubtitles);
+        setStatus(Status.SUCCESS);
+      }, 500);
+
     } catch (err) {
+      clearProgressInterval();
+      setProgress(0);
       console.error(err);
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
       setError(`Failed to generate subtitles: ${errorMessage}`);
       setStatus(Status.ERROR);
     }
-  }, [file]);
+  }, [file, clearProgressInterval]);
   
   const handleReset = () => {
     setFile(null);
-    setSubtitles('');
+    setSubtitles([]);
     setStatus(Status.IDLE);
     setError('');
+    setProgress(0);
+    clearProgressInterval();
   };
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col items-center justify-center p-4 sm:p-6 font-sans">
-      <div className="w-full max-w-2xl mx-auto">
+      <div className="w-full max-w-3xl mx-auto">
         <header className="text-center mb-8">
           <h1 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-600">
             AI Subtitle Generator
@@ -80,9 +118,9 @@ const App: React.FC = () => {
           )}
 
           {status === Status.LOADING && (
-            <div className="mt-6 text-center">
-              <Spinner />
-              <p className="mt-2 text-indigo-400 animate-pulse">Generating subtitles... this may take a moment.</p>
+            <div className="mt-6 flex flex-col items-center justify-center text-center">
+              <CircularProgress progress={progress} />
+              <p className="mt-4 text-indigo-400 animate-pulse">Generating subtitles... this may take a moment.</p>
             </div>
           )}
           
@@ -98,8 +136,8 @@ const App: React.FC = () => {
             </div>
           )}
           
-          {status === Status.SUCCESS && (
-            <SubtitleDisplay subtitles={subtitles} onReset={handleReset} filename={file?.name ?? 'subtitles'} />
+          {status === Status.SUCCESS && file && (
+            <SubtitlePreview file={file} subtitles={subtitles} onReset={handleReset} />
           )}
 
         </main>

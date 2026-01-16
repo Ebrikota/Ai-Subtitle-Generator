@@ -5,3 +5,10 @@ export enum Status {
   SUCCESS = 'success',
   ERROR = 'error',
 }
+
+export interface SubtitleEntry {
+  startTime: number;
+  endTime: number;
+  text: string;
+  confidence?: number;
+}
