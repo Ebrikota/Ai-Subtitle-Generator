@@ -26,7 +26,8 @@ const ConfidenceIndicator: React.FC<{ confidence?: number }> = ({ confidence }) 
     <div className="relative group flex items-center justify-center">
       <span className={`w-3 h-3 rounded-full ${getConfidenceColor()}`}></span>
       <div className="absolute bottom-full mb-2 w-max px-2 py-1 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-        Confidence: {(confidence * 100).toFixed(0)}%
+        Timing Confidence: {(confidence * 100).toFixed(0)}%
+        <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900"></div>
       </div>
     </div>
   );
@@ -37,6 +38,7 @@ const SubtitleLineEdit: React.FC<SubtitleLineEditProps> = ({ entry, index, onUpd
   const [startTimeStr, setStartTimeStr] = useState('');
   const [endTimeStr, setEndTimeStr] = useState('');
   const [text, setText] = useState('');
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     setStartTimeStr(secondsToTimeString(entry.startTime));
@@ -66,6 +68,17 @@ const SubtitleLineEdit: React.FC<SubtitleLineEditProps> = ({ entry, index, onUpd
   const handleTextBlur = () => {
     if (text !== entry.text) {
         onUpdate(index, { ...entry, text });
+    }
+  };
+
+  const handleTextKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        textareaRef.current?.blur();
+    }
+    if (e.key === 'Escape') {
+        setText(entry.text);
+        textareaRef.current?.blur();
     }
   };
 
@@ -115,9 +128,11 @@ const SubtitleLineEdit: React.FC<SubtitleLineEditProps> = ({ entry, index, onUpd
         />
       </div>
       <textarea
+          ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onBlur={handleTextBlur}
+          onKeyDown={handleTextKeyDown}
           className={`${commonInputClasses} ${validClasses} resize-y min-h-[40px] leading-snug`}
           rows={Math.max(1, text.split('\n').length)}
           aria-label={`Text for line ${index + 1}`}

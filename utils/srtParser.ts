@@ -53,12 +53,46 @@ export const parseSrt = (srt: string): SubtitleEntry[] => {
 };
 
 
-export const toSrt = (entries: SubtitleEntry[]): string => {
-  return entries
-    .map((entry, index) => {
-      const startTime = secondsToTimeString(entry.startTime);
-      const endTime = secondsToTimeString(entry.endTime);
-      return `${index + 1}\n${startTime} --> ${endTime}\n${entry.text}`;
-    })
-    .join('\n\n');
+export const toSrt = (entries: SubtitleEntry[], duration?: number): string => {
+  if (!entries.length) return '';
+
+  // Deep copy to avoid modifying the original array from the component state
+  const localEntries: SubtitleEntry[] = JSON.parse(JSON.stringify(entries));
+
+  // Extend the last subtitle to the end of the media if duration is provided
+  if (duration && localEntries.length > 0) {
+    const lastEntry = localEntries[localEntries.length - 1];
+    if (lastEntry.endTime < duration) {
+      lastEntry.endTime = duration;
+    }
+  }
+
+  const blocks: string[] = [];
+  let i = 0;
+  let srtIndex = 1;
+
+  while (i < localEntries.length) {
+    const sub1 = localEntries[i];
+    const sub2 = localEntries[i + 1];
+
+    // A pair is two sequential subs with a small time gap, AND the first line does not end a sentence.
+    const endsWithPunctuation = /[.?!]$/.test(sub1.text.trim());
+    const isPair = sub2 && sub2.startTime - sub1.endTime < 0.5 && !endsWithPunctuation;
+
+    if (isPair) {
+      const startTime = secondsToTimeString(sub1.startTime);
+      const endTime = secondsToTimeString(sub2.endTime);
+      const text = `${sub1.text}\n${sub2.text}`;
+      blocks.push(`${srtIndex}\n${startTime} --> ${endTime}\n${text}`);
+      i += 2; // Skip both entries of the pair
+    } else {
+      const startTime = secondsToTimeString(sub1.startTime);
+      const endTime = secondsToTimeString(sub1.endTime);
+      const text = sub1.text;
+      blocks.push(`${srtIndex}\n${startTime} --> ${endTime}\n${text}`);
+      i += 1; // Skip single entry
+    }
+    srtIndex++;
+  }
+  return blocks.join('\n\n');
 };

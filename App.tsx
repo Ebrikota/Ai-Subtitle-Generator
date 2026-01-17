@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { synchronizeSubtitles } from './services/geminiService';
-import { fileToBase64 } from './utils/fileUtils';
+import { fileToBase64, getMediaDuration } from './utils/fileUtils';
 import FileUpload from './components/FileUpload';
 import SubtitlePreview from './components/SubtitlePreview';
 import CircularProgress from './components/CircularProgress';
@@ -51,6 +51,9 @@ const App: React.FC = () => {
     setProgress(0);
 
     try {
+      setLoadingMessage('Analyzing media...');
+      const mediaDuration = await getMediaDuration(file);
+
       setLoadingMessage('Transcribing & synchronizing...');
       progressIntervalRef.current = window.setInterval(() => {
         setProgress(p => (p < 95 ? p + 1 : 95));
@@ -63,6 +66,17 @@ const App: React.FC = () => {
       }
 
       const generatedSubtitles = await synchronizeSubtitles(base64Data, mimeType);
+      
+      // Extend the last subtitle to the end of the media for a better viewing experience.
+      if (generatedSubtitles.length > 0) {
+        const lastSubtitle = generatedSubtitles[generatedSubtitles.length - 1];
+        const timeDifference = mediaDuration - lastSubtitle.endTime;
+
+        // Only extend if the subtitle ends before the media and the gap isn't excessively long (e.g., > 10s of silence).
+        if (timeDifference > 0 && timeDifference < 10) {
+            lastSubtitle.endTime = mediaDuration;
+        }
+      }
       
       clearProgressInterval();
       setProgress(100);

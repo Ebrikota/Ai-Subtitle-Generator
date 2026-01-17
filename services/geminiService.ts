@@ -71,7 +71,10 @@ export const synchronizeSubtitles = async (base64Data: string, mimeType: string)
 
 **YOUR TASK IS TO:**
 1.  **TRANSCRIBE:** Listen carefully to the audio and transcribe the spoken words verbatim.
-2.  **SEGMENT:** Break the full transcription into short, rhythmic lines suitable for subtitles. Lines should ideally be under 23 characters and break at natural pauses.
+2.  **SEGMENT & GROUP:** 
+    *   Break the full transcription into short, rhythmic lines suitable for subtitles. Lines should ideally be under 23 characters.
+    *   Where it makes sense grammatically and rhythmically, create two-line subtitle pairs. For example, a single sentence might be split across two consecutive subtitle entries.
+    *   **CRITICAL SENTENCE RULE:** A two-line pair must *never* contain the end of one sentence and the beginning of another. All text within a single subtitle block (one line or a two-line pair) must belong to the same sentence. If a line ends with a period, question mark, or exclamation point, it must be the last line of its block.
 3.  **TIMING (EXTREME PRECISION):** This is your main purpose. Analyze the audio waveform with extreme care. The \`startTime\` must mark the *absolute beginning* of the audible speech for that line, and the \`endTime\` must mark the *absolute end* of the final word's sound. Timestamps MUST be in the strict \`HH:MM:SS,mmm\` format.
 4.  **CONFIDENCE SCORE:** For each line, provide a \`confidence\` score from 0.0 to 1.0 based on how accurately you believe you timed the segment.
 5.  **EXPLANATION:** Provide a brief \`timing_explanation\` for each line.`,
@@ -89,14 +92,14 @@ export const synchronizeSubtitles = async (base64Data: string, mimeType: string)
     if (!response.candidates || response.candidates.length === 0) {
       const blockReason = response.promptFeedback?.blockReason;
       if (blockReason) {
-        throw new Error(`Request blocked for safety reasons (${blockReason}). Please use different media.`);
+        throw new Error(`Request blocked due to: ${blockReason}. Please try different media.`);
       }
-      throw new Error('The model returned an empty response. The content may be unsupported or invalid.');
+      throw new Error('The AI model returned an empty response. This can happen with unsupported content.');
     }
 
     const jsonString = response.text?.trim();
     if (!jsonString) {
-        throw new Error('The model returned a valid structure but with empty content. Please try again.');
+        throw new Error('The AI model returned a valid structure but with no content. Please try again.');
     }
 
     const parsed = JSON.parse(jsonString);
@@ -119,7 +122,7 @@ export const synchronizeSubtitles = async (base64Data: string, mimeType: string)
         };
       });
     } else {
-      throw new Error('The model returned an unexpected data structure. Please try again.');
+      throw new Error('The AI model returned an unexpected data structure. Please try again.');
     }
   } catch (error) {
     console.error("Error calling Gemini API:", error);
@@ -127,31 +130,23 @@ export const synchronizeSubtitles = async (base64Data: string, mimeType: string)
     if (error instanceof Error) {
         const message = error.message.toLowerCase();
 
-        if (
-            message.startsWith('request blocked') || 
-            message.startsWith('the model returned an empty response') ||
-            message.startsWith('the model returned a valid structure') ||
-            message.startsWith('the model returned an unexpected data structure')
-        ) {
-            throw error;
-        }
-
         if (message.includes('api key not valid')) {
-            throw new Error('The API key is invalid. Please check the application configuration.');
+            throw new Error('The provided API key is invalid. Please check your key.');
         }
-        if (message.includes('429')) {
-            throw new Error('The service is experiencing high traffic. Please wait a few moments and try again.');
+        if (message.includes('429') || message.includes('rate limit')) {
+            throw new Error('API rate limit exceeded. Please wait a moment and try again.');
         }
         if (message.includes('500') || message.includes('503') || message.includes('unavailable')) {
-            throw new Error('The AI service is temporarily down. Please try again later.');
+            throw new Error('The AI service is temporarily unavailable. Please try again later.');
         }
-        if (error instanceof SyntaxError) {
-             throw new Error('The model returned a malformed response. This is often a temporary issue, please try again.');
+        if (error.name === 'SyntaxError') {
+             throw new Error('The AI returned a malformed response. This is often temporary, please try again.');
         }
         
-        throw new Error('An unexpected API error occurred. Please try again.');
+        // Use the original error message for other specific cases
+        throw error;
     }
 
-    throw new Error("An unknown error occurred. Please try again.");
+    throw new Error("An unknown error occurred while contacting the AI service.");
   }
 };

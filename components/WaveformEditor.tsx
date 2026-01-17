@@ -16,19 +16,21 @@ interface WaveformEditorProps {
   file: File;
   subtitles: SubtitleEntry[];
   onUpdateSubtitle: (index: number, updatedEntry: SubtitleEntry) => void;
+  onUpdateFinished: () => void;
+  onSplitSubtitle: (index: number, time: number) => void;
   currentTime: number;
   onSeek: (time: number) => void;
   selectedSubtitleIndex: number | null;
   onSelectSubtitle: (index: number | null) => void;
 }
 
-const WaveformEditor: React.FC<WaveformEditorProps> = ({ file, subtitles, onUpdateSubtitle, currentTime, onSeek, selectedSubtitleIndex, onSelectSubtitle }) => {
+const WaveformEditor: React.FC<WaveformEditorProps> = ({ file, subtitles, onUpdateSubtitle, onUpdateFinished, onSplitSubtitle, currentTime, onSeek, selectedSubtitleIndex, onSelectSubtitle }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
   const [peaks, setPeaks] = useState<[number, number][]>([]);
   const [duration, setDuration] = useState(0);
-  const [dragInfo, setDragInfo] = useState<{ type: 'start' | 'end'; index: number; startX: number } | null>(null);
+  const [dragInfo, setDragInfo] = useState<{ type: 'start' | 'end' | 'move'; index: number; startX: number; originalStart: number; originalEnd: number; } | null>(null);
 
   const getCanvasWidth = () => containerRef.current?.clientWidth ?? 0;
 
@@ -149,6 +151,18 @@ const WaveformEditor: React.FC<WaveformEditorProps> = ({ file, subtitles, onUpda
     if (!canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
+    const time = pxToTime(x);
+
+    // Check for split action first
+    if (e.altKey) {
+        for (let i = subtitles.length - 1; i >= 0; i--) {
+            const sub = subtitles[i];
+            if (time > sub.startTime && time < sub.endTime) {
+                onSplitSubtitle(i, time);
+                return;
+            }
+        }
+    }
 
     for (let i = subtitles.length - 1; i >= 0; i--) {
         const sub = subtitles[i];
@@ -156,54 +170,63 @@ const WaveformEditor: React.FC<WaveformEditorProps> = ({ file, subtitles, onUpda
         const endX = timeToPx(sub.endTime);
 
         if (Math.abs(x - startX) < HANDLE_WIDTH) {
-            setDragInfo({ type: 'start', index: i, startX: x });
+            setDragInfo({ type: 'start', index: i, startX: x, originalStart: sub.startTime, originalEnd: sub.endTime });
             return;
         }
         if (Math.abs(x - endX) < HANDLE_WIDTH) {
-            setDragInfo({ type: 'end', index: i, startX: x });
+            setDragInfo({ type: 'end', index: i, startX: x, originalStart: sub.startTime, originalEnd: sub.endTime });
             return;
         }
-    }
-    
-    // If not on a handle, check if inside a region to select it
-    for (let i = subtitles.length - 1; i >= 0; i--) {
-        const sub = subtitles[i];
-        const startX = timeToPx(sub.startTime);
-        const endX = timeToPx(sub.endTime);
-        if (x >= startX && x <= endX) {
+        if (x > startX && x < endX) {
+            setDragInfo({ type: 'move', index: i, startX: x, originalStart: sub.startTime, originalEnd: sub.endTime });
             onSelectSubtitle(i);
             return;
         }
     }
 
-    onSeek(pxToTime(x));
+    onSeek(time);
   };
   
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragInfo || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const newTime = Math.max(0, Math.min(duration, pxToTime(x)));
     
     const sub = subtitles[dragInfo.index];
     let updatedEntry = { ...sub };
-
-    if (dragInfo.type === 'start') {
-        updatedEntry.startTime = Math.min(newTime, sub.endTime);
+    
+    if (dragInfo.type === 'move') {
+        const deltaX = x - dragInfo.startX;
+        const deltaTime = pxToTime(deltaX);
+        const newStartTime = Math.max(0, dragInfo.originalStart + deltaTime);
+        const newEndTime = Math.min(duration, newStartTime + (dragInfo.originalEnd - dragInfo.originalStart));
+        updatedEntry.startTime = newStartTime;
+        updatedEntry.endTime = newEndTime;
     } else {
-        updatedEntry.endTime = Math.max(newTime, sub.startTime);
+        const newTime = Math.max(0, Math.min(duration, pxToTime(x)));
+        if (dragInfo.type === 'start') {
+            updatedEntry.startTime = Math.min(newTime, sub.endTime);
+        } else {
+            updatedEntry.endTime = Math.max(newTime, sub.startTime);
+        }
     }
 
     onUpdateSubtitle(dragInfo.index, updatedEntry);
   }, [dragInfo, duration, onUpdateSubtitle, subtitles]);
 
   const handleMouseUp = useCallback(() => {
+    if (dragInfo) {
+      onUpdateFinished();
+    }
     setDragInfo(null);
-  }, []);
+  }, [dragInfo, onUpdateFinished]);
   
   const handleMouseLeave = useCallback(() => {
-     setDragInfo(null);
-  }, []);
+    if (dragInfo) {
+      onUpdateFinished();
+    }
+    setDragInfo(null);
+  }, [dragInfo, onUpdateFinished]);
 
   useEffect(() => {
     window.addEventListener('mousemove', handleMouseMove);
@@ -221,6 +244,7 @@ const WaveformEditor: React.FC<WaveformEditorProps> = ({ file, subtitles, onUpda
         ref={canvasRef}
         onMouseDown={handleMouseDown}
         onMouseLeave={handleMouseLeave}
+        title="Click to seek, click and drag handles or region body to edit, Alt+Click to split"
       />
     </div>
   );
