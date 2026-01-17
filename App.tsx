@@ -1,12 +1,10 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { synchronizeSubtitles } from './services/geminiService';
-import { transcribeWithWhisper } from './services/openaiService';
 import { fileToBase64 } from './utils/fileUtils';
 import FileUpload from './components/FileUpload';
 import SubtitlePreview from './components/SubtitlePreview';
 import CircularProgress from './components/CircularProgress';
-import ApiKeyInput from './components/ApiKeyInput';
 import { Status, SubtitleEntry } from './types';
 
 const App: React.FC = () => {
@@ -16,15 +14,7 @@ const App: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [progress, setProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState('');
-  const [isApiKeySet, setIsApiKeySet] = useState(false);
   const progressIntervalRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const key = localStorage.getItem('openai_api_key');
-    if (key) {
-      setIsApiKeySet(true);
-    }
-  }, []);
 
   const clearProgressInterval = useCallback(() => {
     if (progressIntervalRef.current) {
@@ -49,19 +39,6 @@ const App: React.FC = () => {
     clearProgressInterval();
   };
   
-  const handleApiKeySubmit = (key: string) => {
-    localStorage.setItem('openai_api_key', key);
-    setIsApiKeySet(true);
-    setError('');
-  };
-
-  const handleClearApiKey = () => {
-    localStorage.removeItem('openai_api_key');
-    setIsApiKeySet(false);
-    setError('');
-    handleReset();
-  };
-
   const handleGenerateSubtitles = useCallback(async () => {
     if (!file) {
       setError('Please select a file first.');
@@ -74,15 +51,7 @@ const App: React.FC = () => {
     setProgress(0);
 
     try {
-      setLoadingMessage('Transcribing with Whisper...');
-      progressIntervalRef.current = window.setInterval(() => {
-        setProgress(p => (p < 45 ? p + 1 : 45)); 
-      }, 150);
-      const transcript = await transcribeWithWhisper(file);
-      clearProgressInterval();
-      setProgress(50);
-      
-      setLoadingMessage('Synchronizing timestamps...');
+      setLoadingMessage('Transcribing & synchronizing...');
       progressIntervalRef.current = window.setInterval(() => {
         setProgress(p => (p < 95 ? p + 1 : 95));
       }, 150);
@@ -93,7 +62,7 @@ const App: React.FC = () => {
         throw new Error('Unsupported file type. Please upload an audio or video file.');
       }
 
-      const generatedSubtitles = await synchronizeSubtitles(base64Data, mimeType, transcript);
+      const generatedSubtitles = await synchronizeSubtitles(base64Data, mimeType);
       
       clearProgressInterval();
       setProgress(100);
@@ -109,14 +78,7 @@ const App: React.FC = () => {
       console.error(err);
       
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
-      
-      if (errorMessage.includes('Invalid OpenAI API key')) {
-          localStorage.removeItem('openai_api_key');
-          setIsApiKeySet(false);
-          setError('Your OpenAI API key is invalid. Please enter a valid key.');
-      } else {
-          setError(`Failed to generate subtitles: ${errorMessage}`);
-      }
+      setError(`Failed to generate subtitles: ${errorMessage}`);
       setStatus(Status.ERROR);
     }
   }, [file, clearProgressInterval]);
@@ -143,26 +105,9 @@ const App: React.FC = () => {
           </p>
         </header>
 
-        {isApiKeySet && (
-          <div className="w-full text-right mb-4 -mt-4">
-            <button 
-              onClick={handleClearApiKey}
-              className="text-xs text-gray-500 hover:text-indigo-400 hover:underline transition-colors"
-            >
-              Change OpenAI API Key
-            </button>
-          </div>
-        )}
-
         <main className="bg-gray-800/50 rounded-2xl shadow-2xl shadow-indigo-500/10 p-6 sm:p-8 backdrop-blur-sm border border-gray-700">
-          {!isApiKeySet ? (
-             <ApiKeyInput onKeySubmit={handleApiKeySubmit} />
-          ) : (
-            <>
-              {status !== Status.SUCCESS && (
-                <FileUpload onFileChange={handleFileChange} file={file} />
-              )}
-            </>
+          {status !== Status.SUCCESS && (
+            <FileUpload onFileChange={handleFileChange} file={file} />
           )}
 
           {error && (
@@ -171,37 +116,32 @@ const App: React.FC = () => {
             </div>
           )}
           
-          {isApiKeySet && (
-            <>
-                {status === Status.LOADING && (
-                <div className="mt-6 flex flex-col items-center justify-center text-center">
-                    <CircularProgress progress={progress} />
-                    <p className="mt-4 text-indigo-400 animate-pulse">{loadingMessage}</p>
-                </div>
-                )}
-                
-                {status === Status.IDLE && file && (
-                <div className="mt-6 flex justify-center">
-                    <button
-                    onClick={handleGenerateSubtitles}
-                    disabled={!file || status === Status.LOADING}
-                    className="w-full sm:w-auto px-8 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-opacity-75"
-                    >
-                    Generate Subtitles
-                    </button>
-                </div>
-                )}
-                
-                {status === Status.SUCCESS && file && (
-                <SubtitlePreview file={file} subtitles={subtitles} onReset={handleReset} />
-                )}
-            </>
+          {status === Status.LOADING && (
+          <div className="mt-6 flex flex-col items-center justify-center text-center">
+              <CircularProgress progress={progress} />
+              <p className="mt-4 text-indigo-400 animate-pulse">{loadingMessage}</p>
+          </div>
           )}
-
+          
+          {status === Status.IDLE && file && (
+          <div className="mt-6 flex justify-center">
+              <button
+              onClick={handleGenerateSubtitles}
+              disabled={!file || status === Status.LOADING}
+              className="w-full sm:w-auto px-8 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-opacity-75"
+              >
+              Generate Subtitles
+              </button>
+          </div>
+          )}
+          
+          {status === Status.SUCCESS && file && (
+          <SubtitlePreview file={file} subtitles={subtitles} onReset={handleReset} />
+          )}
         </main>
         
         <footer className="text-center mt-8 text-gray-500 text-sm">
-            <p>Powered by OpenAI Whisper & Gemini API</p>
+            <p>Powered by Gemini API</p>
         </footer>
       </div>
     </div>

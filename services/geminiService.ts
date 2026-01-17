@@ -29,7 +29,7 @@ const subtitleSchema = {
           },
           text: {
             type: Type.STRING,
-            description: "A single, short line of transcribed text taken directly from the provided script. It should not exceed 23 characters.",
+            description: "A single, short line of transcribed text. It should not exceed 23 characters.",
           },
           timing_explanation: {
             type: Type.STRING,
@@ -54,7 +54,7 @@ interface SubtitleLine {
     confidence: number;
 }
 
-export const synchronizeSubtitles = async (base64Data: string, mimeType: string, transcript: string): Promise<SubtitleEntry[]> => {
+export const synchronizeSubtitles = async (base64Data: string, mimeType: string): Promise<SubtitleEntry[]> => {
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview", 
@@ -67,20 +67,14 @@ export const synchronizeSubtitles = async (base64Data: string, mimeType: string,
             },
           },
           {
-            text: `You are a professional subtitle timing and segmentation specialist. You will be given an exact, verbatim transcript and the corresponding audio file.
-Your ONLY task is to segment the provided transcript into short, rhythmic lines and provide perfectly synchronized start and end timestamps for each line from the audio.
+            text: `You are a professional subtitle transcription and timing specialist. You will be given an audio/video file.
 
-**CRITICAL INSTRUCTIONS:**
-1.  **DO NOT TRANSCRIBE:** The transcript is provided below and is considered 100% accurate. You MUST NOT alter, correct, add, or remove any words from the provided transcript. Your output text must be a direct segmentation of the source transcript.
-2.  **SEGMENTATION:** Break the transcript into short lines, ideally under 23 characters. Break lines at natural pauses.
+**YOUR TASK IS TO:**
+1.  **TRANSCRIBE:** Listen carefully to the audio and transcribe the spoken words verbatim.
+2.  **SEGMENT:** Break the full transcription into short, rhythmic lines suitable for subtitles. Lines should ideally be under 23 characters and break at natural pauses.
 3.  **TIMING (EXTREME PRECISION):** This is your main purpose. Analyze the audio waveform with extreme care. The \`startTime\` must mark the *absolute beginning* of the audible speech for that line, and the \`endTime\` must mark the *absolute end* of the final word's sound. Timestamps MUST be in the strict \`HH:MM:SS,mmm\` format.
-4.  **CONFIDENCE SCORE:** For each line, provide a \`confidence\` score from 0.0 to 1.0 based on how accurately you believe you timed the segment. A score of 1.0 means you are absolutely certain of the timing.
-5.  **EXPLANATION:** Provide a brief \`timing_explanation\` for each line.
-
-**THE VERBATIM TRANSCRIPT TO TIME AND SEGMENT IS:**
----
-${transcript}
----`,
+4.  **CONFIDENCE SCORE:** For each line, provide a \`confidence\` score from 0.0 to 1.0 based on how accurately you believe you timed the segment.
+5.  **EXPLANATION:** Provide a brief \`timing_explanation\` for each line.`,
           },
         ],
       },
