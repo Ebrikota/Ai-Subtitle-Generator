@@ -74,23 +74,34 @@ export const toSrt = (entries: SubtitleEntry[], duration?: number): string => {
   while (i < localEntries.length) {
     const sub1 = localEntries[i];
     const sub2 = localEntries[i + 1];
+    const sub3 = localEntries[i + 2];
 
-    // A pair is two sequential subs with a small time gap, AND the first line does not end a sentence.
-    const endsWithPunctuation = /[.?!]$/.test(sub1.text.trim());
-    const isPair = sub2 && sub2.startTime - sub1.endTime < 0.5 && !endsWithPunctuation;
+    const endsWithPunctuation1 = /[.?!]$/.test(sub1.text.trim());
+    const isPair = sub2 && sub2.startTime - sub1.endTime < 0.5 && !endsWithPunctuation1;
+    const endsWithPunctuation2 = isPair && sub2 && /[.?!]$/.test(sub2.text.trim());
+    const isTriplet = isPair && sub3 && sub3.startTime - sub2.endTime < 0.5 && !endsWithPunctuation2;
 
-    if (isPair) {
+    if (isTriplet) {
+      // Triplet block
+      const startTime = secondsToTimeString(sub1.startTime);
+      const endTime = secondsToTimeString(sub3.endTime);
+      const text = `${sub1.text}\n${sub2.text}\n${sub3.text}`;
+      blocks.push(`${srtIndex}\n${startTime} --> ${endTime}\n${text}`);
+      i += 3;
+    } else if (isPair) {
+      // Pair block
       const startTime = secondsToTimeString(sub1.startTime);
       const endTime = secondsToTimeString(sub2.endTime);
       const text = `${sub1.text}\n${sub2.text}`;
       blocks.push(`${srtIndex}\n${startTime} --> ${endTime}\n${text}`);
-      i += 2; // Skip both entries of the pair
+      i += 2;
     } else {
+      // Single line block
       const startTime = secondsToTimeString(sub1.startTime);
       const endTime = secondsToTimeString(sub1.endTime);
       const text = sub1.text;
       blocks.push(`${srtIndex}\n${startTime} --> ${endTime}\n${text}`);
-      i += 1; // Skip single entry
+      i += 1;
     }
     srtIndex++;
   }

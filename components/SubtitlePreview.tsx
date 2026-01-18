@@ -109,30 +109,37 @@ const SubtitlePreview: React.FC<SubtitlePreviewProps> = ({ file, subtitles, onRe
 
     let displaySubs: string[] = [];
 
-    // This logic processes subtitles in discrete groups (pairs or singles)
+    // This logic processes subtitles in discrete groups (triplets, pairs, or singles)
     // to prevent any line from appearing in multiple on-screen sets.
-    for (let i = 0; i < editableSubtitles.length; i++) {
+    for (let i = 0; i < editableSubtitles.length; ) {
         const sub1 = editableSubtitles[i];
         const sub2 = editableSubtitles[i + 1];
+        const sub3 = editableSubtitles[i + 2];
 
-        // A pair is two sequential subs with a small time gap, AND the first line does not end a sentence.
-        const endsWithPunctuation = /[.?!]$/.test(sub1.text.trim());
-        const isPair = sub2 && sub2.startTime - sub1.endTime < 0.5 && !endsWithPunctuation;
+        // Check for triplet first
+        const endsWithPunctuation1 = /[.?!]$/.test(sub1.text.trim());
+        const isPair = sub2 && sub2.startTime - sub1.endTime < 0.5 && !endsWithPunctuation1;
+        const endsWithPunctuation2 = isPair && sub2 && /[.?!]$/.test(sub2.text.trim());
+        const isTriplet = isPair && sub3 && sub3.startTime - sub2.endTime < 0.5 && !endsWithPunctuation2;
 
-        if (isPair) {
-            // It's a pair. The active time is from the start of the first sub to the end of the second.
+        if (isTriplet) {
+            if (time >= sub1.startTime && time <= sub3.endTime) {
+                displaySubs = [sub1.text, sub2.text, sub3.text];
+                break; // Found the active group, stop searching.
+            }
+            i += 3; // Move to the next potential group
+        } else if (isPair) {
             if (time >= sub1.startTime && time <= sub2.endTime) {
                 displaySubs = [sub1.text, sub2.text];
                 break; // Found the active group, stop searching.
             }
-            // Skip the next subtitle in the loop since it's part of this pair.
-            i++; 
+            i += 2; // Move to the next potential group
         } else {
-            // It's a single subtitle.
             if (time >= sub1.startTime && time <= sub1.endTime) {
                 displaySubs = [sub1.text];
                 break; // Found the active group, stop searching.
             }
+            i += 1; // Move to the next potential group
         }
     }
     
@@ -299,12 +306,12 @@ const SubtitlePreview: React.FC<SubtitlePreviewProps> = ({ file, subtitles, onRe
             
             {currentSubtitles.length > 0 && (
               <div 
-                className="absolute bottom-[30%] left-1/2 -translate-x-1/2 w-11/12 text-center pointer-events-none"
+                className="absolute bottom-[35%] left-1/2 -translate-x-1/2 w-11/12 text-center pointer-events-none"
                 style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}
                 aria-live="polite"
               >
                 {currentSubtitles.map((text, i) => (
-                    <p key={i} className="inline-block w-full bg-black bg-opacity-60 text-white font-bold text-base sm:text-lg md:text-xl px-2 py-1 rounded leading-tight">
+                    <p key={i} className="inline-block w-full bg-black bg-opacity-60 text-white font-bold text-sm sm:text-base md:text-lg px-2 py-1 rounded leading-tight">
                     {text}
                     </p>
                 ))}

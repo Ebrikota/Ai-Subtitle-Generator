@@ -73,8 +73,8 @@ export const synchronizeSubtitles = async (base64Data: string, mimeType: string)
 1.  **TRANSCRIBE:** Listen carefully to the audio and transcribe the spoken words verbatim.
 2.  **SEGMENT & GROUP:** 
     *   Break the full transcription into short, rhythmic lines suitable for subtitles. Lines should ideally be under 23 characters.
-    *   Where it makes sense grammatically and rhythmically, create two-line subtitle pairs. For example, a single sentence might be split across two consecutive subtitle entries.
-    *   **CRITICAL SENTENCE RULE:** A two-line pair must *never* contain the end of one sentence and the beginning of another. All text within a single subtitle block (one line or a two-line pair) must belong to the same sentence. If a line ends with a period, question mark, or exclamation point, it must be the last line of its block.
+    *   Where it makes sense grammatically and rhythmically, create two-line or three-line subtitle blocks. For example, a single sentence might be split across two or three consecutive subtitle entries.
+    *   **CRITICAL SENTENCE RULE:** A block (one, two, or three lines) must *never* contain the end of one sentence and the beginning of another. All text within a single subtitle block must belong to the same sentence. If a line ends with a period, question mark, or exclamation point, it must be the last line of its block.
 3.  **TIMING (EXTREME PRECISION):** This is your main purpose. Analyze the audio waveform with extreme care. The \`startTime\` must mark the *absolute beginning* of the audible speech for that line, and the \`endTime\` must mark the *absolute end* of the final word's sound. Timestamps MUST be in the strict \`HH:MM:SS,mmm\` format.
 4.  **CONFIDENCE SCORE:** For each line, provide a \`confidence\` score from 0.0 to 1.0 based on how accurately you believe you timed the segment.
 5.  **EXPLANATION:** Provide a brief \`timing_explanation\` for each line.`,
